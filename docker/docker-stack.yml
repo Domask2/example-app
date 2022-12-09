@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "12601:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    networks:
+      - net
+    volumes:
+      - vol_db:/var/lib/postgresql/data
+
+  db_rizh:
+    image: postgres:14
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "12602:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER_RIZH}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_RIZH}
+      - POSTGRES_DB=${POSTGRES_DB_RIZH}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_RIZH} -d ${POSTGRES_DB_RIZH} -h 127.0.0.1"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    networks:
+      - net
+    volumes:
+      - vol_db_rizh:/var/lib/postgresql/data
+
+  app:
+    image: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.back-lcp-http.entrypoints=web
+        - traefik.http.routers.back-lcp-http.rule=Host(`back.lcp.plinor.team`)
+        - traefik.http.routers.back-lcp-http.middlewares=back-lcp-to-https
+        - traefik.http.middlewares.back-lcp-to-https.redirectscheme.scheme=https
+        - traefik.http.routers.back-lcp-https.entrypoints=websecure
+        - traefik.http.routers.back-lcp-https.rule=Host(`back.lcp.plinor.team`)
+        - traefik.http.routers.back-lcp-https.tls=true
+        - traefik.http.services.back-lcp-https.loadbalancer.server.port=8080
+    networks:
+      - net
+      - traefik_net
+
+networks:
+  net:
+  traefik_net:
+    external: true
+
+volumes:
+  vol_db:
+    driver: glusterfs
+    name: "gfs/lcp/backend/db"
+  
+  vol_db_rizh:
+    driver: glusterfs
+    name: "gfs/lcp/backend/db_rizh"

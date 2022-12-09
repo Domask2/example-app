@@ -1,0 +1,13 @@
+#!/bin/sh
+printf "%s\n" "Waiting for database ..."
+while ! ping -c 1 db &> /dev/null
+do
+    printf "%s\n" "Waiting for the database service to start ..."
+done
+printf "%s\n" "Database online"
+cd /www
+echo $PWD
+php artisan migrate --force
+php artisan create:adminuser --email=2519483@gmail.com --password=okin240819521 || true
+php artisan vendor:publish --tag=laravel-pagination
+php artisan storage:link
